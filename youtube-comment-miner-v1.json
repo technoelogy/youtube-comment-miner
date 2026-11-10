@@ -1,0 +1,494 @@
+{
+  "name": "YouTube Comment Miner v1",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## YouTube Comment Miner v1 — CH Brands India\n\n**Owner:** Tron (Noel Gomes)  \n**Target ship:** Thu 13 Nov 2026  \n**Scope v1:** Ensure Protein — 3 seed videos, comment mining, GPT-4o-mini classification, Google Sheets append.\n\n**Deferred to v1.1+:**\n- Pagination beyond first 100 comments per video\n- Video transcription (Apify) + GPT-4o video context layer\n- Weekly Cron (currently disabled — flip at Stage 6 Harden)\n- Supabase pgvector RAG chat layer (v2)\n\n**Sheet:** YouTube Comment Miner - Ensure Protein (ID 1JsdwN-qU6mhKwIiNQlNUxcua-OOTWS7dYPB8RA8j_fE)\n\n**Credentials to wire at Stage 3:**\n1. YouTube API (Query Auth → key param, API key from label-lens GCP project)\n2. OpenAI (existing paid account)\n3. Google Sheets OAuth (existing credential)",
+        "height": 340,
+        "width": 500
+      },
+      "id": "ad6e721f-a8d5-431f-ace0-fddf93643fbc",
+      "name": "README",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        384,
+        320
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "a9b52054-54a1-43da-93dc-7240f4fbc802",
+      "name": "Manual Trigger (Stub Test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        496,
+        720
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "a214e2e8-7b10-4f5b-82cd-d0dff2ba1473",
+      "name": "Weekly Cron (Sun 9am IST)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        496,
+        880
+      ],
+      "typeVersion": 1.2,
+      "notes": "Disabled by default. Flip on at Stage 6 Harden."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seed-1",
+              "name": "seeds",
+              "type": "array",
+              "value": "=[\n  { \"brand\": \"Ensure Protein\", \"video_id\": \"MkYAFXO21zw\", \"seed_notes\": \"English review\" },\n  { \"brand\": \"Ensure Protein\", \"video_id\": \"GpRd3HsxiS8\", \"seed_notes\": \"Hindi review\" },\n  { \"brand\": \"Ensure Protein\", \"video_id\": \"0l4N3UKp6qw\", \"seed_notes\": \"Ensure vs Horlicks Short, 65 comments\" }\n]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c5c5b9fc-f48e-43ee-9287-39a62ea174cd",
+      "name": "Seed List",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        736,
+        800
+      ],
+      "typeVersion": 3.4,
+      "notes": "Replace video_id placeholders with 3 real Ensure Protein review video IDs before stub test."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "seeds",
+        "options": {}
+      },
+      "id": "0b46c497-fa12-4595-9e52-896c09a61cae",
+      "name": "Split Seeds",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        944,
+        800
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet,statistics"
+            },
+            {
+              "name": "id",
+              "value": "={{ $json.video_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a3781c54-0f87-4020-a9e1-511e9826a9fd",
+      "name": "Get Video Description",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1168,
+        800
+      ],
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "uhtLJEKV9k9ztsQI",
+          "name": "YouTube Data API - label-lens"
+        }
+      },
+      "notes": "Cost: 1 quota unit per video. YouTube Data API v3 - videos.list"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "id,snippet"
+            },
+            {
+              "name": "videoId",
+              "value": "={{ $('Split Seeds').item.json.video_id }}"
+            },
+            {
+              "name": "maxResults",
+              "value": "100"
+            },
+            {
+              "name": "order",
+              "value": "relevance"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "63289eca-1b93-4728-ab53-ed47b2a01ce6",
+      "name": "Get Comments",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1392,
+        800
+      ],
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "uhtLJEKV9k9ztsQI",
+          "name": "YouTube Data API - label-lens"
+        }
+      },
+      "notes": "Cost: 1 quota unit per video. YouTube Data API v3 - commentThreads.list. v1 pulls top 100 comments only. Pagination = v1.1."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "8e2b39c7-3088-430b-969c-46e90fd231de",
+      "name": "Split Comments",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        1616,
+        800
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You classify YouTube comments on Indian Consumer Health product review videos (protein powders, nutrition drinks, probiotics, OTC vitamins).\n\nReturn STRICT JSON with these keys ONLY:\n- classification: one of [objection, use_case, trust_signal, competitor_mention, claim_reaction, noise]\n- theme: 2-4 word theme (e.g. \"taste\", \"price point\", \"recovery after surgery\", \"artificial sweetener\", \"texture\", \"pregnancy safe\")\n- competitor_named: brand name if any competitor is mentioned, else empty string\n\nClassification rules:\n- objection: complaint, doubt, negative experience, price pushback, taste/texture issue, ingredient concern\n- use_case: how the consumer uses the product (post-surgery recovery, pre-workout, elderly nutrition, kids growth, meal replacement)\n- trust_signal: why they buy — doctor recommended, used for years, parent's choice, hospital gave it, visible results\n- competitor_mention: names another brand (Protinex, Horlicks, Complan, Nutrigo, GNC, Whey Protein, etc.)\n- claim_reaction: direct response to a brand claim the YouTuber made (sugar content, protein grams, FSSAI approval, clinical study)\n- noise: spam, emoji-only, irrelevant, unrelated, or empty\n\nReturn JSON only, no prose.",
+              "role": "system"
+            },
+            {
+              "content": "={{ $json.snippet.topLevelComment.snippet.textOriginal }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "113758e7-5b48-481e-ab3a-ca142b79953b",
+      "name": "Classify Comment",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [
+        1824,
+        800
+      ],
+      "typeVersion": 1.7,
+      "credentials": {
+        "openAiApi": {
+          "id": "ImjGjWXSonlX5ViZ",
+          "name": "OpenAI account 2"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "GPT-4o-mini with temp 0.1 for consistency. Output at $json.message.content as parsed JSON object."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Format row for Google Sheets Append\n// Columns match Stage 7 schema exactly\n\nconst seed = $('Split Seeds').item.json;\nconst videoDesc = $('Get Video Description').item.json;\nconst comment = $('Split Comments').item.json;\nconst classification = $input.item.json.message.content;\n\n// Author hash — DPDP compliance (Stage 5 decision)\n// Pure JS djb2 hash (n8n sandbox blocks require('crypto'))\nconst authorId = comment?.snippet?.topLevelComment?.snippet?.authorChannelId?.value || 'anon';\nfunction hash8(str) {\n  let h = 5381;\n  for (let i = 0; i < str.length; i++) {\n    h = ((h << 5) + h) + str.charCodeAt(i);\n    h = h & h;\n  }\n  return Math.abs(h).toString(16).padStart(8, '0').substring(0, 8);\n}\nconst authorHash = hash8(authorId);\n\n// Parse classification if it came back as string (fallback)\nlet cls = classification;\nif (typeof cls === 'string') {\n  try { cls = JSON.parse(cls); } catch(e) { cls = { classification: 'noise', theme: '', competitor_named: '' }; }\n}\n\nreturn {\n  json: {\n    'Date': new Date().toISOString().slice(0, 10),\n    'Brand': seed.brand,\n    'Video ID': seed.video_id,\n    'Video Title': videoDesc?.items?.[0]?.snippet?.title || '',\n    'Comment (verbatim)': comment?.snippet?.topLevelComment?.snippet?.textOriginal || '',\n    'Classification': cls.classification || '',\n    'Theme': cls.theme || '',\n    'Competitor Named': cls.competitor_named || '',\n    'Author Hash': authorHash,\n    'Likes': comment?.snippet?.topLevelComment?.snippet?.likeCount || 0\n  }\n};"
+      },
+      "id": "db11b817-2daf-4c12-8eb3-36f45ef287eb",
+      "name": "Format Row",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2048,
+        800
+      ],
+      "typeVersion": 2,
+      "notes": "Hashes authorChannelId for DPDP compliance (Stage 5 decision). SHA-256, first 8 chars."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "1JsdwN-qU6mhKwIiNQlNUxcua-OOTWS7dYPB8RA8j_fE",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1JsdwN-qU6mhKwIiNQlNUxcua-OOTWS7dYPB8RA8j_fE/edit",
+          "cachedResultName": "YouTube Comment Miner - Ensure Protein"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1JsdwN-qU6mhKwIiNQlNUxcua-OOTWS7dYPB8RA8j_fE/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Brand",
+              "displayName": "Brand",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Video ID",
+              "displayName": "Video ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Video Title",
+              "displayName": "Video Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Comment (verbatim)",
+              "displayName": "Comment (verbatim)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Classification",
+              "displayName": "Classification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Theme",
+              "displayName": "Theme",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Competitor Named",
+              "displayName": "Competitor Named",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Author Hash",
+              "displayName": "Author Hash",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Likes",
+              "displayName": "Likes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7e725973-4f78-4682-8e87-1f49e938d2f1",
+      "name": "Append to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        2272,
+        800
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Q1PXKuCSUcD1YSLz",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Sheet: YouTube Comment Miner - Ensure Protein. Auto-maps column names from Format Row output."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (Stub Test)": {
+      "main": [
+        [
+          {
+            "node": "Seed List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Cron (Sun 9am IST)": {
+      "main": [
+        [
+          {
+            "node": "Seed List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed List": {
+      "main": [
+        [
+          {
+            "node": "Split Seeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Seeds": {
+      "main": [
+        [
+          {
+            "node": "Get Video Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Description": {
+      "main": [
+        [
+          {
+            "node": "Get Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Comments": {
+      "main": [
+        [
+          {
+            "node": "Split Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Comments": {
+      "main": [
+        [
+          {
+            "node": "Classify Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Comment": {
+      "main": [
+        [
+          {
+            "node": "Format Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Row": {
+      "main": [
+        [
+          {
+            "node": "Append to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f72590ab-641a-4ad9-bfff-a707c25013ee",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "273d8d80b6c6b32c34f94ac35e411edd06d5e6d9b5a0409cc6c16d1f63944003"
+  },
+  "nodeGroups": [],
+  "id": "DFddccLORqX58vHg",
+  "tags": []
+}
