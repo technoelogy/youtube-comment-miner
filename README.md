@@ -1,6 +1,6 @@
 # YouTube Comment Miner
 
-500 to 5,000 pre-purchase consumer comments sit untouched on every popular YouTube review video. PDP reviews on 1mg and Amazon are post-purchase, templated, often shaped by the discount code. The YouTube signal is predictive. The PDP signal is diagnostic. Brands pay more for predictive, but no one in Indian Consumer Health is mining it systematically.
+500 to 5,000 pre-purchase consumer questions sit untouched on every popular YouTube review video. PDP reviews on Nykaa, Myntra, and Amazon are post-purchase, templated, often shaped by the discount code. The YouTube signal is predictive. The PDP signal is diagnostic. Brands pay more for predictive, but no one in Indian Consumer Health is mining it systematically.
 
 This workflow does.
 
@@ -13,26 +13,26 @@ Three outputs, same pipeline:
 2. **Looker Studio dashboard** (reader surface) — top objections, competitor mindshare, theme trends, top comments by likes.
 3. **Monthly PDF report** — 8 pages written by Claude Sonnet 4.5 from the sheet data. Executive summary, verbatim quotes, recommended actions. Reads like a brief, not a data dump.
 
-## v1 scope (shipped)
+## v1.1 scope (shipped)
 
-- Vertical: Consumer Health, India
-- Demo brand: Ensure Protein (Abbott Nutrition)
-- 3 seed videos: 1 English review, 1 Hindi review, 1 Ensure vs Horlicks Short
-- 157 classified rows in 1 production run
-- 92 to 95% classification accuracy on spot-check (English + Hindi + Hinglish + Gujarati scripts)
-- Running cost: ~Rs 145/month at current volume
+- Vertical: Skincare, India
+- Demo brands: Minimalist, The Derma Co
+- 3 seed videos across Minimalist reviews + a Derma Co review
+- 269 classified rows in 1 production run
+- 92 to 95% classification accuracy on spot-check (English + Hindi + Hinglish scripts)
+- Running cost: ~Rs 150/month at current volume
 - Weekly auto-run via Cron, with manual trigger for on-demand runs
 
-## What this unlocked for Ensure Protein (sample findings)
+## What this unlocked across 3 skincare videos (sample findings)
 
-- "Abbot is not manufacturing this product" — trust crisis signal, repeated by multiple commenters
-- "I had taken ensure for six months but of little use" — effectiveness objection, churn risk
-- "Mujhe dr ne diya tha" — doctor recommendation as trust signal
-- Diabetes safety questions in top 10 themes every run
-- Post-childbirth recovery and tuberculosis patient nutrition as unlisted but repeat use cases
-- Competitive mindshare shifting from legacy brands (Horlicks, Complan, Protinex) to D2C whey challengers (Beast Life, Avvatar, Nutrija, Quenchlabz)
+- Repeated public speculation that Minimalist has been acquired by HUL, raised across different videos by different consumers. Brand team has made no statement in the review-comment surface where this is spreading.
+- Consumers questioning whether product packaging matches what's claimed on the brand website. Trust signal that would never surface in a PDP review.
+- Niacinamide irritation, retinol tolerance, vitamin C + ferulic acid compatibility — ingredient science objections brand pages rarely address directly.
+- Underserved cohorts repeating across videos: PCOS skin, teen acne management, male oily T-zone, pre-wedding routines, melasma management, cold-weather skincare.
+- Competitive mindshare is on D2C and K-beauty challengers (WishCare, The Ordinary, SKIN 1004, Isntree, Purito, Deconstruct, Dot & Key, Aminu, Plum, Conscious Chemist). Legacy brands (Olay, Lakme, Pond's, Biotique) do not show up in organic comment competitive mentions.
+- Counterfeit concerns on Meesho resellers raised directly in review comments.
 
-Not one of these came from a research agency brief. They came from reading what Ensure's own consumers typed, free, in public, before purchase.
+Not one of these came from a research agency brief. They came from reading what skincare consumers typed, free, in public, before purchase.
 
 ## Architecture
 
@@ -58,36 +58,44 @@ flowchart LR
 
 - **Orchestration**: n8n (self-hosted, technoelogy.n8ns.host)
 - **Comment source**: YouTube Data API v3 (public, authenticated via API key)
-- **Classification**: OpenAI GPT-4o-mini, temperature 0.1, JSON mode
+- **Classification**: OpenAI GPT-4o-mini, temperature 0.1, JSON mode. Prompt tuned for skincare (actives, textures, pregnancy safety, dermatologist signals, Indian D2C and K-beauty competitor set).
 - **Storage**: Google Sheets
 - **Hashing**: pure JS djb2 (n8n sandbox blocks require('crypto'))
 - **Reserved for v2**: Supabase pgvector + OpenAI embeddings + Cohere Rerank for chat-queryable comment corpus
 
 ## Compliance posture
 
-- **YouTube API ToS §III.E**: comment text + derived insights stored. Author identity hashed. Original comment author names stripped from client deliverables. 30-day refresh cycle planned for v1.1 to purge comments deleted upstream.
+- **YouTube API ToS §III.E**: comment text + derived insights stored. Author identity hashed. Original comment author names stripped from client deliverables. 30-day refresh cycle planned for v1.2 to purge comments deleted upstream.
 - **India DPDP Act 2023**: author channel ID is hashed (SHA-equivalent 8-char djb2) on write. No raw identifiers leave the workflow. Legal review recommended before first paid client pitch.
 
-## Setup
+## How to run it on your category
+
+The build is category-agnostic. To apply to your own skincare, OTC, pharma, or any CH vertical:
 
 1. Clone repo, import `youtube-comment-miner-v1.json` into n8n
 2. Create YouTube Data API v3 key on GCP, restrict to YouTube API only
-3. Wire 4 credentials in n8n: YouTube (Query Auth, `key=YOUR_KEY`), OpenAI (existing API key), Google Sheets (OAuth), Google Drive (if using file export)
+3. Wire 4 credentials in n8n: YouTube (Query Auth, `key=YOUR_KEY`), OpenAI, Google Sheets, Anthropic
 4. Create a Google Sheet with headers: `Date | Brand | Video ID | Video Title | Comment (verbatim) | Classification | Theme | Competitor Named | Author Hash | Likes`
-5. Update Seed List node with your 3 target video IDs
-6. Execute workflow manually once to verify, then Publish to activate the weekly schedule
+5. Update Seed List node with your 3 target video IDs and brand names
+6. Tune the Classify Comment system prompt for your category's competitor set, use cases, and trust signals (skincare prompt in the workflow JSON — swap for your specialty)
+7. Execute workflow manually once to verify, then Publish to activate the weekly schedule
 
 Full build notes in `BUILD-NOTES.md`.
 
-## What's deferred
+## What's deferred to v1.2+
 
 - Pagination beyond first 100 comments per video (YouTube caps a single commentThreads.list call)
 - Video transcription (Apify yt-dlp) + GPT-4o video context layer for "what did the YouTuber actually claim at 2:14"
-- Comment corpus as RAG, chat-queryable by brand manager ("show all comments mentioning artificial sweeteners across protein brand review videos, last 90 days")
+- Comment corpus as RAG, chat-queryable by brand manager ("show all comments mentioning niacinamide irritation across skincare review videos, last 90 days")
 - Error log tab for silent-drop monitoring
-- Classifier prompt tightening to stop tagging "Ensure" as its own competitor
+- Classifier prompt tightening to stop tagging the subject brand as its own competitor
+- Multi-category classifier that auto-detects specialty and swaps relevant competitor set
 
-v1 ships because it works, not because it's finished.
+## Specialty lock for your own build
+
+Before running this on your own category, lock the specialty first. Different specialties produce radically different data density and brand-pay willingness. Dermatology and skincare on YouTube India run ~5x the comment volume of nutrition. Women's health, pediatric nutrition, diabetes care, cardiology, and respiratory also each have very different comment patterns. Pick a specialty you have genuine working experience in, and where a named warm-intro buyer exists on the other side.
+
+v1.1 ships because it works, not because it's finished.
 
 ## License
 
